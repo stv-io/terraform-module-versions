@@ -1,0 +1,33 @@
+name: Re-tag and copy to released version
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 50
+      - name: Set variables from file
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(cat VERSION)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "$VER"
+          git --no-pager log --pretty=oneline
+          PR_NUM=$(git --no-pager log --pretty=oneline  | grep "#" | head -n 1  | awk -F '#' '{print $2}' | awk '{print $1}' | tr -d '(#)')
+          echo "PR_NUM $PR_NUM"
+          CONTAINER_TAG=$(gh pr view $PR_NUM --json commits | jq -r '.commits[-1].oid')
+          echo "CONTAINER_TAG $CONTAINER_TAG"
+          echo "CONTAINER_TAG=$CONTAINER_TAG" >> $GITHUB_ENV
+
+      - name: "Skopeo promote previous PR's build"
+        run: |
+          echo "DEBUG Version $VERSION"
+          echo ${{ secrets.GITHUB_TOKEN }} | skopeo login ghcr.io -u stv-io --password-stdin
+          echo "Promoting built image to release"
+          skopeo copy docker://ghcr.io/stv-io/terraform-module-versions/terraform-module-versions:${CONTAINER_TAG} docker://ghcr.io/stv-io/terraform-module-versions/terraform-module-versions:v${VERSION}
